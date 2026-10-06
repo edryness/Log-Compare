@@ -1,6 +1,7 @@
 # Log Compare
 
-Side-by-side, line-by-line comparison of two text/log files, like Notepad++ Compare. Built for comparing **working** and **non-working** log sets. Created by Bryan - Defender for Endpoint.
+Side-by-side, line-by-line comparison of two text/log files, like Notepad++ Compare. Built for comparing **working** and **non-working** log sets. Easy, lightweight and user friendly. Compare logs offline and safely. 
+Created by Bryan - Defender for Endpoint.
 
 A single HTML file: no install, works offline, and files are read locally in the browser (nothing is uploaded).
 
