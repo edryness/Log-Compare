@@ -1,0 +1,1741 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log Compare</title>
+<meta name="description" content="Side-by-side, line-by-line comparison of two text or log files. Runs locally in the browser; files never leave the machine.">
+<meta name="author" content="Bryan - Defender for Endpoint">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --border: #d6dae1;
+  --text: #1b2130;
+  --muted: #5b6676;
+  --faint: #8d96a4;
+  --accent: #2459d6;
+  --accent-soft: rgba(36, 89, 214, .12);
+  --gutter: #f2f3f6;
+  --row-sel: rgba(36, 89, 214, .15);
+  --chg-bg: #fdf4d6;
+  --chg-hi: #efbf45;
+  --del-bg: #fde4e4;
+  --del-hi: #f29d9d;
+  --add-bg: #ddf3e4;
+  --add-hi: #83d09b;
+  --fill-a: #e9ebef;
+  --fill-b: #f5f6f8;
+  --fold-bg: #e7ebf2;
+  --hit-bg: #ffe14d;
+  --hit-text: #111;
+  --ig: #9099a7;
+  --ok: #1b7f45;
+  --bad: #d23a3a;
+  --warn: #9a6200;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, "Liberation Mono", monospace;
+  --sans: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111418;
+    --surface: #191d23;
+    --surface-2: #22272f;
+    --border: #333a45;
+    --text: #e3e7ee;
+    --muted: #a1abb9;
+    --faint: #6b7584;
+    --accent: #6d9cff;
+    --accent-soft: rgba(109, 156, 255, .16);
+    --gutter: #161a1f;
+    --row-sel: rgba(109, 156, 255, .22);
+    --chg-bg: #383119;
+    --chg-hi: #9c7b1d;
+    --del-bg: #3c1f24;
+    --del-hi: #923742;
+    --add-bg: #16342a;
+    --add-hi: #23794c;
+    --fill-a: #1d2128;
+    --fill-b: #171a20;
+    --fold-bg: #212935;
+    --hit-bg: #e6c341;
+    --hit-text: #111;
+    --ig: #6f7988;
+    --ok: #4cc584;
+    --bad: #ff6b6b;
+    --warn: #e2b04a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111418;
+  --surface: #191d23;
+  --surface-2: #22272f;
+  --border: #333a45;
+  --text: #e3e7ee;
+  --muted: #a1abb9;
+  --faint: #6b7584;
+  --accent: #6d9cff;
+  --accent-soft: rgba(109, 156, 255, .16);
+  --gutter: #161a1f;
+  --row-sel: rgba(109, 156, 255, .22);
+  --chg-bg: #383119;
+  --chg-hi: #9c7b1d;
+  --del-bg: #3c1f24;
+  --del-hi: #923742;
+  --add-bg: #16342a;
+  --add-hi: #23794c;
+  --fill-a: #1d2128;
+  --fill-b: #171a20;
+  --fold-bg: #212935;
+  --hit-bg: #e6c341;
+  --hit-text: #111;
+  --ig: #6f7988;
+  --ok: #4cc584;
+  --bad: #ff6b6b;
+  --warn: #e2b04a;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font: 13px/1.4 var(--sans); -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+
+/* ---------- toolbars ---------- */
+.top, .bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 7px 14px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.bar { padding: 6px 14px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 14.5px; letter-spacing: -.01em; margin-right: 2px; }
+.brand svg { width: 20px; height: 20px; color: var(--accent); }
+.credit {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .01em; color: var(--accent); white-space: nowrap;
+  padding: 1px 8px; border-radius: 999px; background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.vsep { width: 1px; height: 22px; background: var(--border); }
+.grow { flex: 1; }
+.lbl-sm { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 650; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--surface-2); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.icon { width: 28px; padding: 0; justify-content: center; }
+.btn.sm { height: 23px; padding: 0 8px; font-size: 12px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chk {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px;
+  border: 1px solid var(--border); border-radius: 999px; cursor: pointer; user-select: none; white-space: nowrap;
+}
+.chk input { margin: 0; accent-color: var(--accent); }
+.chk:has(input:checked) { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.sel, .txt { height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); padding: 0 6px; min-width: 0; }
+.txt { padding: 0 8px; }
+.sel:disabled { opacity: .45; }
+#optCustom { width: 200px; font-family: var(--mono); font-size: 12px; }
+#search { width: 250px; }
+.txt.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }
+.btn:focus-visible, .chk:focus-within, .txt:focus-visible, .sel:focus-visible, .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.muted { color: var(--muted); }
+.stats { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+.stat { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.stat i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.stat.chg i { background: var(--chg-hi); }
+.stat.del i { background: var(--del-hi); }
+.stat.add i { background: var(--add-hi); }
+.ok { color: var(--ok); font-weight: 600; }
+.warn { color: var(--warn); cursor: help; }
+
+/* ---------- main layout ---------- */
+main { flex: 1; min-height: 0; display: flex; position: relative; }
+.compare { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.heads, .panes { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); }
+.heads { background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.fhead { display: flex; align-items: center; gap: 8px; padding: 5px 10px; min-width: 0; font-size: 12.5px; }
+.fhead .fname { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
+.fhead .fmeta { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 0; }
+.fhead.over { background: var(--accent-soft); }
+.tag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); flex: none;
+}
+.panes { flex: 1; min-height: 0; }
+.pane { overflow: auto; position: relative; background: var(--surface); font: 12.5px/20px var(--mono); scrollbar-width: thin; }
+.pane.over { outline: 2px dashed var(--accent); outline-offset: -3px; }
+.vspace { position: relative; min-width: 100%; }
+
+/* rows */
+.r { position: absolute; left: 0; right: 0; height: 20px; display: flex; white-space: pre; }
+.r .ln {
+  position: sticky; left: 0; z-index: 1; flex: none; box-sizing: content-box;
+  display: flex; justify-content: flex-end; gap: 5px;
+  width: calc(var(--digits, 4) * 1ch + 3ch); padding: 0 6px 0 4px;
+  color: var(--faint); background: var(--gutter); border-right: 1px solid var(--border); user-select: none;
+}
+.r .ln i { font-style: normal; width: 1ch; text-align: center; font-weight: 700; }
+.r .tx { flex: 1; padding: 0 10px; tab-size: 4; -moz-tab-size: 4; }
+.t-chg .tx { background: var(--chg-bg); }
+.t-del .tx { background: var(--del-bg); }
+.t-add .tx { background: var(--add-bg); }
+.t-chg .ln { box-shadow: inset 3px 0 var(--chg-hi); color: var(--text); }
+.t-del .ln { box-shadow: inset 3px 0 var(--del-hi); color: var(--text); }
+.t-add .ln { box-shadow: inset 3px 0 var(--add-hi); color: var(--text); }
+.fill .tx { background: repeating-linear-gradient(135deg, var(--fill-a) 0 5px, var(--fill-b) 5px 10px); }
+.fold { cursor: pointer; }
+.fold .tx { background: var(--fold-bg); color: var(--muted); font-family: var(--sans); font-size: 12px; }
+.fold:hover .tx { color: var(--accent); }
+.r.sel .tx { box-shadow: inset 0 0 0 100vmax var(--row-sel); }
+.r.sel .ln { color: var(--accent); font-weight: 700; }
+.dl { background: var(--del-hi); border-radius: 2px; }
+.dr { background: var(--add-hi); border-radius: 2px; }
+.ig { color: var(--ig); }
+.hit { background: var(--hit-bg); color: var(--hit-text); border-radius: 2px; }
+.trunc { color: var(--muted); font-style: italic; font-family: var(--sans); font-size: 11.5px; }
+
+/* overview strip */
+.ov { position: relative; background: var(--surface-2); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: pointer; overflow: hidden; touch-action: none; }
+.ov canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#ovBox { position: absolute; left: 1px; right: 1px; border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 2px; pointer-events: none; }
+
+/* detail pane */
+.grip { flex: none; height: 7px; cursor: ns-resize; background: var(--surface-2); border-top: 1px solid var(--border); position: relative; touch-action: none; }
+.grip::after { content: ""; position: absolute; left: 50%; top: 2px; width: 36px; height: 2px; margin-left: -18px; border-radius: 2px; background: var(--faint); opacity: .6; }
+.detail {
+  flex: none; height: 150px; overflow: auto; background: var(--surface); padding: 8px 14px;
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; align-content: start;
+  font: 12.5px/1.55 var(--mono);
+}
+.detail .lbl { font: 600 11.5px/1.9 var(--sans); color: var(--muted); white-space: nowrap; }
+.detail .val { white-space: pre-wrap; word-break: break-all; tab-size: 4; padding: 1px 6px; border-radius: 4px; min-height: 1.55em; }
+.detail .val.t-chg { background: var(--chg-bg); }
+.detail .val.t-del { background: var(--del-bg); }
+.detail .val.t-add { background: var(--add-bg); }
+.detail .val.none { color: var(--muted); font: italic 12px/1.9 var(--sans); }
+.detail .hint { grid-column: 1 / -1; color: var(--muted); font-family: var(--sans); }
+.detail .chunks { font-family: var(--sans); }
+.detail .chunks code { font-family: var(--mono); padding: 0 3px; border-radius: 3px; white-space: pre-wrap; }
+.detail .chunks .arrow { color: var(--muted); padding: 0 4px; }
+.detail .chunks .sepc { color: var(--faint); padding: 0 6px; }
+
+/* differences sidebar */
+.side { width: 340px; flex: none; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border); background: var(--surface); }
+body.side-hidden .side { display: none; }
+.side-head { padding: 7px 12px; font-weight: 650; border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 6px; align-items: center; }
+.side-list { flex: 1; overflow: auto; position: relative; scrollbar-width: thin; }
+.side-empty { padding: 16px; color: var(--muted); }
+.item { position: absolute; left: 0; right: 0; height: 80px; padding: 7px 12px 6px 15px; border-bottom: 1px solid var(--border); cursor: pointer; overflow: hidden; }
+.item::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--chg-hi); }
+.item.k-del::before { background: var(--del-hi); }
+.item.k-add::before { background: var(--add-hi); }
+.item:hover { background: var(--surface-2); }
+.item.cur { background: var(--accent-soft); }
+.item .t1 { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.item .t1 .no { color: var(--muted); }
+.item .t2 { font-size: 11.5px; color: var(--muted); margin: 1px 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .pv { font: 11.5px/17px var(--mono); white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.item .pv b { font-weight: 700; display: inline-block; width: 2ch; color: var(--muted); }
+
+/* empty state */
+.empty {
+  position: absolute; inset: 0; z-index: 5; background: var(--bg);
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 16px; padding: 24px;
+}
+.drop {
+  border: 2px dashed var(--border); border-radius: 14px; background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  text-align: center; padding: 20px; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.drop.loaded { border-style: solid; border-color: color-mix(in srgb, var(--ok) 55%, var(--border)); }
+.drop svg { width: 36px; height: 36px; color: var(--accent); opacity: .85; }
+.dz-title { font-size: 17px; font-weight: 650; }
+.dz-sub { color: var(--muted); }
+.dz-file { margin-top: 6px; font-size: 12.5px; color: var(--muted); max-width: 100%; overflow-wrap: anywhere; }
+.dz-file b { color: var(--text); }
+.okmark { color: var(--ok); font-weight: 700; }
+.empty .note { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 12.5px; }
+
+/* overlays */
+.busy { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--bg) 65%, transparent); font-weight: 600; }
+.spinner { width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-width: calc(100vw - 32px); }
+dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 20px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+dialog::backdrop { background: rgba(0,0,0,.4); }
+dialog h2 { margin: 0 0 6px; font-size: 18px; }
+dialog h3 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+dialog p, dialog li { line-height: 1.5; }
+dialog ul { margin: 0; padding-left: 18px; }
+dialog table { border-collapse: collapse; width: 100%; }
+dialog td { padding: 3px 8px 3px 0; vertical-align: top; }
+dialog kbd { font: 11.5px var(--mono); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface-2); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+dialog form { margin-top: 18px; text-align: right; }
+
+@media (max-width: 1000px) {
+  .side { position: absolute; right: 0; top: 0; bottom: 0; z-index: 6; box-shadow: -8px 0 24px rgba(0,0,0,.2); width: min(340px, 85vw); }
+}
+@media (max-width: 700px) {
+  .top, .bar { padding: 6px 10px; }
+  .empty { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr auto; padding: 16px; }
+  #search { width: 160px; }
+  #optCustom { width: 150px; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/><path d="M5.5 9h2M5.5 13h2M16.5 9h2M16.5 13h2"/></svg>
+    Log Compare
+    <span class="credit" title="Log Compare was created by Bryan - Defender for Endpoint">Created by Bryan - Defender for Endpoint</span>
+  </div>
+  <div class="group">
+    <span class="lbl-sm">Mode</span>
+    <select id="optMode" class="sel" title="How lines are paired">
+      <option value="smart">Smart align</option>
+      <option value="strict">Line-by-line (line N vs line N)</option>
+    </select>
+  </div>
+  <div class="vsep"></div>
+  <div class="group" role="group" aria-label="Ignore options">
+    <span class="lbl-sm">Ignore</span>
+    <label class="chk" title="Dates and times such as 2026-09-11T12:24:49.032, 5/21/2026 04:24:56 AM, 12:24:49"><input type="checkbox" id="optTs">Timestamps</label>
+    <label class="chk" title="Process/thread IDs such as pid:1234, [Pid:27528], tid:41512, PPID:6516:..."><input type="checkbox" id="optPid">PIDs/TIDs</label>
+    <label class="chk" title="GUIDs such as {2b3f03d4-6a8b-4cdb-9e21-c2b8f2dbbc2f}"><input type="checkbox" id="optGuid">GUIDs</label>
+    <label class="chk" title="Treat upper and lower case as the same"><input type="checkbox" id="optCase">Case</label>
+    <label class="chk" title="Ignore differences in spaces and tabs"><input type="checkbox" id="optWs">Whitespace</label>
+    <input type="text" id="optCustom" class="txt" placeholder="Custom regex to ignore" spellcheck="false" autocomplete="off" title="Any text matching this regular expression is ignored when comparing (case-insensitive)">
+  </div>
+  <div class="vsep"></div>
+  <div class="group">
+    <label class="chk" title="Hide identical lines and show only the differences with some context"><input type="checkbox" id="optOnly">Only differences</label>
+    <select id="optCtx" class="sel" title="Identical lines kept around each difference">
+      <option value="0">0 lines context</option>
+      <option value="3">3 lines context</option>
+      <option value="10">10 lines context</option>
+    </select>
+  </div>
+  <div class="grow"></div>
+  <div class="group">
+    <button class="btn" id="btnSwap" title="Swap left and right files">⇄ Swap</button>
+    <button class="btn" id="btnSave" title="Save a text report of every difference">Save report</button>
+    <button class="btn" id="btnCopy" title="Copy the text report to the clipboard">Copy report</button>
+    <button class="btn" id="btnList" title="Show or hide the list of differences">☰ List</button>
+    <button class="btn" id="btnClear" title="Close both files and start over">Clear</button>
+    <button class="btn icon" id="btnTheme" title="Theme"></button>
+    <button class="btn icon" id="btnHelp" title="Help and keyboard shortcuts">?</button>
+  </div>
+</header>
+
+<div class="bar">
+  <div class="group">
+    <button class="btn" id="btnPrev" title="Previous difference (Shift+F8, Alt+↑, P)">▲ Prev</button>
+    <button class="btn" id="btnNext" title="Next difference (F8, Alt+↓, N)">▼ Next</button>
+    <span id="navInfo" class="muted"></span>
+  </div>
+  <div id="stats" class="stats"></div>
+  <div class="grow"></div>
+  <div class="group">
+    <input type="search" id="search" class="txt" placeholder="Find in both files (Ctrl+F)" spellcheck="false" autocomplete="off">
+    <button class="btn icon" id="btnFindPrev" title="Previous match (Shift+Enter)">▲</button>
+    <button class="btn icon" id="btnFindNext" title="Next match (Enter)">▼</button>
+    <span id="hitInfo" class="muted"></span>
+  </div>
+</div>
+
+<main>
+  <section class="compare" id="compare">
+    <div class="heads">
+      <div class="fhead" id="headL" data-side="L" title="Drop a file here to replace the left file"></div>
+      <div></div>
+      <div class="fhead" id="headR" data-side="R" title="Drop a file here to replace the right file"></div>
+    </div>
+    <div class="panes" id="panes">
+      <div class="pane" id="paneL" data-side="L"><div class="vspace" id="spL"><div id="rowsL"></div></div></div>
+      <div class="ov" id="ovWrap" title="Overview of all differences: click or drag to jump"><canvas id="ov"></canvas><div id="ovBox"></div></div>
+      <div class="pane" id="paneR" data-side="R"><div class="vspace" id="spR"><div id="rowsR"></div></div></div>
+    </div>
+    <div class="grip" id="grip" title="Drag to resize the detail pane"></div>
+    <div class="detail" id="detail"></div>
+
+    <div class="empty" id="empty">
+      <div class="drop" id="dropL" data-side="L" tabindex="0" role="button" aria-label="Choose the left file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg>
+        <div class="dz-title">Left file</div>
+        <div class="dz-sub">e.g. the <b>working</b> machine's log</div>
+        <div class="dz-file" id="dzL">Drop a .txt or .log file here, or click to browse</div>
+      </div>
+      <div class="drop" id="dropR" data-side="R" tabindex="0" role="button" aria-label="Choose the right file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg>
+        <div class="dz-title">Right file</div>
+        <div class="dz-sub">e.g. the <b>non-working</b> machine's log</div>
+        <div class="dz-file" id="dzR">Drop a .txt or .log file here, or click to browse</div>
+      </div>
+      <div class="note">Tip: drop both files at once to fill both sides. Files are read locally in this page and are never uploaded anywhere.</div>
+    </div>
+  </section>
+
+  <aside class="side" id="side" aria-label="Differences">
+    <div class="side-head">Differences <span id="sideCount" class="muted"></span></div>
+    <div class="side-list" id="sideList"><div class="vspace" id="sideSpacer"><div id="sideItems"></div></div></div>
+  </aside>
+</main>
+
+<input type="file" id="fileInput" accept=".txt,.log,text/plain" hidden>
+<div class="busy" id="busy" hidden><div class="spinner"></div><span id="busyMsg">Comparing…</span></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<dialog id="help">
+  <h2>Log Compare</h2>
+  <p class="muted">Load two text files side by side and see every line that differs. Built for comparing a working and a non-working customer log set.</p>
+
+  <h3>Colors</h3>
+  <table>
+    <tr><td><span class="sw" style="background:var(--chg-hi)"></span>Changed</td><td>The line exists on both sides but differs. The differing words are marked <span class="dl">&nbsp;red&nbsp;</span> on the left and <span class="dr">&nbsp;green&nbsp;</span> on the right.</td></tr>
+    <tr><td><span class="sw" style="background:var(--del-hi)"></span>Only in left</td><td>The line is in the left file only. The right side shows a hatched gap.</td></tr>
+    <tr><td><span class="sw" style="background:var(--add-hi)"></span>Only in right</td><td>The line is in the right file only. The left side shows a hatched gap.</td></tr>
+    <tr><td><span class="ig">dimmed text</span></td><td>Ignored by the current Ignore options (for example timestamps).</td></tr>
+  </table>
+
+  <h3>Keyboard</h3>
+  <table>
+    <tr><td><kbd>F8</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd> <kbd>N</kbd></td><td>Next difference</td></tr>
+    <tr><td><kbd>Shift</kbd>+<kbd>F8</kbd> <kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>P</kbd></td><td>Previous difference</td></tr>
+    <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Move the selected line</td></tr>
+    <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Find text in both files; <kbd>Enter</kbd> / <kbd>Shift</kbd>+<kbd>Enter</kbd> for next / previous match</td></tr>
+  </table>
+
+  <h3>Mode</h3>
+  <ul>
+    <li><b>Smart align</b> (default) lines up matching lines, so one extra line in a file doesn't make everything after it look different. Works like Notepad++ Compare or WinMerge.</li>
+    <li><b>Line-by-line</b> compares line N of the left file with line N of the right file, strictly.</li>
+  </ul>
+
+  <h3>Ignore</h3>
+  <ul>
+    <li><b>Timestamps</b>: 2026-09-11T12:24:49.032, 2026-05-20T13:52:35Z, 5/21/2026 04:24:56 AM, 21.05.2026, 12:24:49 and similar.</li>
+    <li><b>PIDs/TIDs</b>: pid:37956, tid:41512, [Pid:27528], PPID:6516:134336030897377560, Process ID: 1234.</li>
+    <li><b>GUIDs</b>, <b>Case</b>, <b>Whitespace</b>, or any <b>custom regex</b> (for example <code>0x[0-9a-f]+</code> or <code>ScanRequest #\d+</code>).</li>
+  </ul>
+
+  <h3>Files</h3>
+  <p>UTF-8, UTF-16 (with or without a byte-order mark, such as MPOperationalEvents.txt and MPLog files) and Windows-1252 are detected automatically. <b>Save report</b> writes every difference with its line numbers to a .txt file you can attach to a case. Everything runs locally in this page.</p>
+  <form method="dialog" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <span class="credit">Created by Bryan - Defender for Endpoint</span>
+    <button class="btn primary">Close</button>
+  </form>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+
+/* ======================= constants ======================= */
+const ROW_H = 20;            // px per line in the panes (must match CSS)
+const ITEM_H = 80;           // px per entry in the differences list (must match CSS)
+const OVERSCAN = 16;
+const RENDER_LIMIT = 3000;   // characters drawn per line in the panes (full text is in the detail pane)
+const DETAIL_LIMIT = 200000;
+const MAX_CHAIN = 64;        // histogram diff: prefer anchor lines occurring at most this often
+const WORK_LIMIT = 6e8;      // safety budget for very large, very different files
+const SMALL_REGION = 1200;   // regions with at most this many lines in total are diffed with Myers directly
+const EXACT_ALWAYS = 1e9;    // regions up to this many line pairs (lines x lines) always get the exact LCS alignment
+const SIMILAR = 0.75;        // bigger regions with less than this share of common lines also get exact LCS...
+const EXACT_CELLS = 8e9;     // ...up to this size; the rest use histogram anchoring
+const MASK_WORDS = 16e6;     // memory cap for exact LCS match masks (64 MB)
+const SIM_MIN = 0.4;         // similarity needed to pair two lines as "changed" inside an uneven block
+const EMPTY = [];
+
+const PRESETS = {
+  ts: [
+    String.raw`\d{4}-\d{2}-\d{2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?`,
+    String.raw`\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}(?:,?[ T]+\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?(?:\s?[AP]M)?)?\b`,
+    String.raw`(?<![\d.])\d{1,2}\.\d{1,2}\.\d{4}(?![\d.])(?:,?[ T]+\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)?`,
+    String.raw`\b\d{1,2}:\d{2}:\d{2}(?:[.,]\d+)?(?:\s?[AP]M)?\b`,
+    String.raw`\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+\d{1,2}(?:,?\s+\d{4}(?:,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)?|,?\s+\d{1,2}:\d{2}(?::\d{2})?(?:[.,]\d+)?)`,
+  ].join('|'),
+  pid: String.raw`\b(?:P?PID|TID|Process\s?ID|Thread\s?ID)\s*[:=#]?\s*\d+(?::\d+)?`,
+  guid: String.raw`\{?\b[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\b\}?`,
+};
+const IGNORE_NAMES = { ts: 'timestamps', pid: 'PIDs/TIDs', guid: 'GUIDs', ic: 'case', ws: 'whitespace' };
+
+/* ======================= state ======================= */
+const DEFAULTS = { mode: 'smart', ts: true, pid: true, guid: false, ic: false, ws: false, custom: '', only: false, ctx: 3 };
+const opts = Object.assign({}, DEFAULTS, readJSON('lc.opts') || {});
+
+const state = {
+  files: { L: null, R: null },
+  compared: false,
+  stale: false,    // a file changed and the rows still point at the old lines: don't draw until the next compare finishes
+  rows: [],       // full aligned rows: {t:'eq'|'chg'|'del'|'add', l, r, i}
+  disp: [],        // displayed rows (rows plus fold markers when "Only differences" is on)
+  blocks: [],      // contiguous difference blocks in disp
+  runs: [],        // same-type runs in disp, for the overview strip
+  stats: null,
+  simplified: false,
+  maskRes: [],
+  expanded: new Set(),
+  sel: -1,
+  curBlock: -1,
+  version: 0,
+  search: { term: '', lc: '', hits: [], idx: -1 },
+};
+
+const $ = (id) => document.getElementById(id);
+const els = {};
+for (const id of ['compare', 'paneL', 'paneR', 'rowsL', 'rowsR', 'spL', 'spR', 'headL', 'headR', 'panes', 'ovWrap', 'ov', 'ovBox',
+  'grip', 'detail', 'empty', 'dropL', 'dropR', 'dzL', 'dzR', 'side', 'sideList', 'sideSpacer', 'sideItems', 'sideCount',
+  'fileInput', 'busy', 'busyMsg', 'toast', 'help', 'stats', 'navInfo', 'hitInfo', 'search',
+  'optMode', 'optTs', 'optPid', 'optGuid', 'optCase', 'optWs', 'optCustom', 'optOnly', 'optCtx',
+  'btnSwap', 'btnSave', 'btnCopy', 'btnList', 'btnClear', 'btnTheme', 'btnHelp', 'btnPrev', 'btnNext', 'btnFindPrev', 'btnFindNext']) {
+  els[id] = $(id);
+}
+
+/* ======================= small utilities ======================= */
+function readJSON(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
+function writeJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* storage unavailable */ } }
+const saveOpts = () => writeJSON('lc.opts', opts);
+const fmt = (n) => n.toLocaleString('en-US');
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ESC[c]);
+function fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
+}
+// Let the browser paint the busy overlay before blocking work. The timer covers background tabs, where rAF is paused.
+const nextPaint = () => new Promise((res) => {
+  let done = false;
+  const go = () => { if (!done) { done = true; setTimeout(res, 0); } };
+  requestAnimationFrame(go);
+  setTimeout(go, 80);
+});
+function busy(on, msg) { els.busy.hidden = !on; if (msg) els.busyMsg.textContent = msg; }
+let toastTimer = 0;
+function toast(msg, ms = 2800) {
+  els.toast.textContent = msg; els.toast.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { els.toast.hidden = true; }, ms);
+}
+function debounce(fn, ms) { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+/* ======================= file reading ======================= */
+function decode(u8) {
+  if (u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) return { text: new TextDecoder('utf-8').decode(u8.subarray(3)), enc: 'UTF-8 BOM' };
+  if (u8[0] === 0xFF && u8[1] === 0xFE) return { text: new TextDecoder('utf-16le').decode(u8.subarray(2)), enc: 'UTF-16 LE' };
+  if (u8[0] === 0xFE && u8[1] === 0xFF) return { text: new TextDecoder('utf-16be').decode(u8.subarray(2)), enc: 'UTF-16 BE' };
+  // UTF-16 without a BOM (MPOperationalEvents.txt is written this way): lots of zero bytes on one parity.
+  const n = Math.min(u8.length, 16384) & ~1;
+  if (n >= 4) {
+    let ze = 0, zo = 0;
+    for (let i = 0; i < n; i++) if (u8[i] === 0) { if (i & 1) zo++; else ze++; }
+    const half = n / 2;
+    if (zo > half * 0.3 && ze < half * 0.05) return { text: new TextDecoder('utf-16le').decode(u8), enc: 'UTF-16 LE (no BOM)' };
+    if (ze > half * 0.3 && zo < half * 0.05) return { text: new TextDecoder('utf-16be').decode(u8), enc: 'UTF-16 BE (no BOM)' };
+  }
+  try { return { text: new TextDecoder('utf-8', { fatal: true }).decode(u8), enc: 'UTF-8' }; }
+  catch { return { text: new TextDecoder('windows-1252').decode(u8), enc: 'Windows-1252' }; }
+}
+
+function makeFile(name, size, text, enc) {
+  const lines = text.split(/\r\n|\r|\n/);
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  let maxLen = 0;
+  for (const l of lines) {
+    let n = l.length;
+    if (n * 4 > maxLen) { let p = l.indexOf('\t'); while (p !== -1) { n += 3; p = l.indexOf('\t', p + 1); } }
+    if (n > maxLen) maxLen = n;
+  }
+  const sample = text.slice(0, 20000);
+  const nul = sample.length ? (sample.match(/\u0000/g) || EMPTY).length / sample.length : 0;
+  return { name, size, enc, lines, maxLen, binary: nul > 0.01 };
+}
+
+async function loadFiles(list) {
+  busy(true, list.length > 1 ? 'Reading files…' : `Reading ${list[0][1].name}…`);
+  await nextPaint();
+  for (const [side, file] of list) {
+    try {
+      const u8 = new Uint8Array(await file.arrayBuffer());
+      const { text, enc } = decode(u8);
+      state.stale = true;
+      state.files[side] = makeFile(file.name, file.size, text, enc);
+      if (state.files[side].binary) toast(`${file.name} doesn't look like a text file; results may be unreadable.`, 5000);
+    } catch (e) {
+      toast(`Could not read ${file.name}: ${e.message}`, 5000);
+    }
+  }
+  busy(false);
+  renderHeads();
+  if (state.files.L && state.files.R) await runCompare();
+  else { state.compared = false; updateChrome(); }
+}
+
+/* ======================= normalisation ======================= */
+function buildMaskRes() {
+  const res = [];
+  const parts = ['ts', 'pid', 'guid'].filter((k) => opts[k]).map((k) => `(?:${PRESETS[k]})`);
+  if (parts.length) res.push(new RegExp(parts.join('|'), 'gi'));
+  let ok = true;
+  const c = opts.custom.trim();
+  if (c) {
+    try { const re = new RegExp(c, 'gi'); if (!re.test('')) res.push(new RegExp(c, 'gi')); else ok = false; }
+    catch { ok = false; }
+  }
+  els.optCustom.classList.toggle('bad', !ok);
+  els.optCustom.title = ok ? 'Any text matching this regular expression is ignored when comparing (case-insensitive)'
+    : 'Invalid regular expression (or it matches empty text): it is not being applied';
+  return res;
+}
+
+function makeNormalizer() {
+  const res = state.maskRes, ic = opts.ic, ws = opts.ws;
+  return (s) => {
+    for (const re of res) s = s.replace(re, '\u0001');
+    if (ic) s = s.toLowerCase();
+    if (ws) s = s.replace(/\s+/g, ' ').trim();
+    return s;
+  };
+}
+
+function maskRanges(text) {
+  const res = state.maskRes;
+  if (!res.length || !text) return EMPTY;
+  let out = [];
+  for (const re of res) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      if (!m[0].length) { re.lastIndex++; continue; }
+      out.push([m.index, m.index + m[0].length]);
+    }
+  }
+  if (res.length > 1 && out.length > 1) out = mergeRanges(out);
+  return out;
+}
+function mergeRanges(rs) {
+  rs.sort((a, b) => a[0] - b[0]);
+  const o = [];
+  for (const r of rs) {
+    const last = o[o.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]); else o.push([r[0], r[1]]);
+  }
+  return o;
+}
+
+/* ======================= diff algorithms ======================= */
+// Myers O(ND) diff on int arrays. Returns matched pairs [a0,b0,a1,b1,...] ascending, or null if more than maxD edits.
+function myersMatches(a, aLo, aHi, b, bLo, bHi, maxD) {
+  const n = aHi - aLo, m = bHi - bLo;
+  myersMatches.lastD = n + m;
+  if (!n || !m) return [];
+  const off = maxD + 1;
+  const V = new Int32Array(2 * maxD + 3);
+  const trace = [];
+  for (let d = 0; d <= maxD; d++) {
+    for (let k = -d; k <= d; k += 2) {
+      let x = (k === -d || (k !== d && V[off + k - 1] < V[off + k + 1])) ? V[off + k + 1] : V[off + k - 1] + 1;
+      let y = x - k;
+      while (x < n && y < m && a[aLo + x] === b[bLo + y]) { x++; y++; }
+      V[off + k] = x;
+      if (x >= n && y >= m) {
+        myersMatches.lastD = d;
+        trace.push(V.slice(off - d, off + d + 1));
+        return myersBacktrack(trace, n, m, aLo, bLo);
+      }
+    }
+    trace.push(V.slice(off - d, off + d + 1));
+  }
+  return null;
+}
+function myersBacktrack(trace, n, m, aLo, bLo) {
+  const rev = [];
+  let x = n, y = m;
+  for (let d = trace.length - 1; d > 0; d--) {
+    const Vp = trace[d - 1], o = d - 1;
+    const k = x - y;
+    const pk = (k === -d || (k !== d && Vp[k - 1 + o] < Vp[k + 1 + o])) ? k + 1 : k - 1;
+    const px = Vp[pk + o], py = px - pk;
+    while (x > px && y > py) { x--; y--; rev.push(y, x); }
+    x = px; y = py;
+  }
+  while (x > 0 && y > 0) { x--; y--; rev.push(y, x); }
+  rev.reverse();
+  for (let i = 0; i < rev.length; i += 2) { rev[i] += aLo; rev[i + 1] += bLo; }
+  return rev;
+}
+
+// Exact LCS row by bit-parallel dynamic programming (Allison-Dix / Hyyro), 32 cells per operation.
+// Returns r with r[k] = LCS(first k lines of a[aLo..aHi), b[bLo..bHi)), or with rev=true LCS(last k lines, ...).
+// Returns null if the match masks would need too much memory.
+function makeLcsRow(K) {
+  const bStamp = new Int32Array(K), slotStamp = new Int32Array(K), slotOf = new Int32Array(K);
+  let gen = 0;
+  return function lcsRow(a, aLo, aHi, b, bLo, bHi, rev) {
+    const n = aHi - aLo, W = (n + 31) >>> 5;
+    gen++;
+    for (let j = bLo; j < bHi; j++) bStamp[b[j]] = gen;
+    let slots = 0;
+    for (let i = aLo; i < aHi; i++) {
+      const id = a[i];
+      if (bStamp[id] === gen && slotStamp[id] !== gen) { slotStamp[id] = gen; slotOf[id] = slots++; }
+    }
+    if (slots * W > MASK_WORDS) return null;
+    const pool = new Uint32Array(slots * W), lo = new Int32Array(slots).fill(W), hi = new Int32Array(slots).fill(-1);
+    for (let i = aLo; i < aHi; i++) {
+      const id = a[i];
+      if (slotStamp[id] !== gen) continue;
+      const s = slotOf[id], p = rev ? aHi - 1 - i : i - aLo, w = p >>> 5;
+      pool[s * W + w] |= 1 << (p & 31);
+      if (w < lo[s]) lo[s] = w;
+      if (w > hi[s]) hi[s] = w;
+    }
+    const V = new Uint32Array(W).fill(0xFFFFFFFF);
+    for (let t = 0, m = bHi - bLo; t < m; t++) {
+      const id = b[rev ? bHi - 1 - t : bLo + t];
+      if (slotStamp[id] !== gen) continue;
+      const s = slotOf[id], base = s * W, end = hi[s];
+      let w = lo[s], carry = 0;
+      for (; w <= end; w++) {                                   // V = (V + (V & M)) | (V & ~M)
+        const v = V[w], u = (v & pool[base + w]) >>> 0, sum = v + u + carry;
+        carry = sum > 4294967295 ? 1 : 0;
+        V[w] = sum | (v & ~u);
+      }
+      for (; carry && w < W; w++) { const v = V[w], sum = v + 1; carry = sum > 4294967295 ? 1 : 0; V[w] = sum | v; }
+    }
+    const r = new Int32Array(n + 1);
+    for (let p = 0, z = 0; p < n; p++) { if (!((V[p >>> 5] >>> (p & 31)) & 1)) z++; r[p + 1] = z; }
+    return r;
+  };
+}
+
+// Line alignment: finds the largest set of lines the two files share in order (LCS), which is what makes a compare readable.
+// Small regions use Myers; regions up to EXACT_ALWAYS line pairs, and mostly-different regions (typical for logs from two
+// machines) up to EXACT_CELLS, use exact bit-parallel LCS with Hirschberg splitting. Huge, similar regions are first cut
+// down with histogram diff (as in git): anchor on the rarest common lines and recurse around them.
+// Iterative so long files can't overflow the stack. Returns matched runs [[a, b, len], ...] sorted.
+function diffLines(a, b, K) {
+  const nA = a.length, nB = b.length;
+  const out = [];
+  const stamp = new Int32Array(K), head = new Int32Array(K), cnt = new Int32Array(K), nxt = new Int32Array(Math.max(1, nA));
+  const bStamp = new Int32Array(K), bCnt = new Int32Array(K);
+  const lcsRow = makeLcsRow(K);
+  let gen = 0, work = 0, simplified = false;
+  const stack = [0, nA, 0, nB, 0];   // regions: aLo, aHi, bLo, bHi, mode (0 auto, 1 exact LCS, 2 histogram only)
+  while (stack.length) {
+    const mode = stack.pop();
+    let bHi = stack.pop(), bLo = stack.pop(), aHi = stack.pop(), aLo = stack.pop();
+    let p = 0;
+    while (aLo + p < aHi && bLo + p < bHi && a[aLo + p] === b[bLo + p]) p++;
+    if (p) { out.push(aLo, bLo, p); aLo += p; bLo += p; }
+    let s = 0;
+    while (aHi - s > aLo && bHi - s > bLo && a[aHi - 1 - s] === b[bHi - 1 - s]) s++;
+    if (s) { out.push(aHi - s, bHi - s, s); aHi -= s; bHi -= s; }
+    work += p + s;
+    if (aLo >= aHi || bLo >= bHi) continue;
+    if (work > WORK_LIMIT) { simplified = true; continue; }
+    const n = aHi - aLo, m = bHi - bLo;
+    if (n + m <= (mode === 1 ? 128 : SMALL_REGION)) {   // small region: Myers is cheap here and gives the minimal diff
+      const pairs = myersMatches(a, aLo, aHi, b, bLo, bHi, n + m);
+      for (let k = 0; k < pairs.length; k += 2) out.push(pairs[k], pairs[k + 1], 1);
+      work += (n + m) * (myersMatches.lastD + 1);
+      continue;
+    }
+    if (n === 1 || m === 1) {       // one line against many: match its first occurrence
+      if (n === 1) { for (let j = bLo; j < bHi; j++) if (b[j] === a[aLo]) { out.push(aLo, j, 1); break; } }
+      else { for (let i = aLo; i < aHi; i++) if (a[i] === b[bLo]) { out.push(i, bLo, 1); break; } }
+      work += n + m;
+      continue;
+    }
+    if (mode === 1) {               // exact LCS: split B in half, find the best matching split point in A
+      const mid = (bLo + bHi) >> 1;
+      const F = lcsRow(a, aLo, aHi, b, bLo, mid, false);
+      const R = F && lcsRow(a, aLo, aHi, b, mid, bHi, true);
+      work += n * m / 32 + 2 * (n + m);
+      if (!R) { stack.push(aLo, aHi, bLo, bHi, 2); continue; }
+      let best = 0, bk = -1;
+      for (let k = 0; k <= n; k++) { const v = F[k] + R[n - k]; if (v > best) { best = v; bk = k; } }
+      if (bk >= 0) stack.push(aLo + bk, aHi, mid, bHi, 1, aLo, aLo + bk, bLo, mid, 1);
+      continue;
+    }
+
+    gen++;
+    for (let i = aHi - 1; i >= aLo; i--) {
+      const id = a[i];
+      if (stamp[id] !== gen) { stamp[id] = gen; head[id] = -1; cnt[id] = 0; }
+      nxt[i] = head[id]; head[id] = i; cnt[id]++;
+    }
+    let common = 0;                 // lines the two sides could share at most
+    for (let j = bLo; j < bHi; j++) {
+      const id = b[j];
+      if (stamp[id] !== gen) continue;
+      if (bStamp[id] !== gen) { bStamp[id] = gen; bCnt[id] = 0; }
+      if (bCnt[id]++ < cnt[id]) common++;
+    }
+    work += 2 * (n + m);
+    if (!common) continue;          // nothing in common: the whole region is one difference block
+    if (mode === 0 && (n * m <= EXACT_ALWAYS || (common < SIMILAR * Math.min(n, m) && n * m <= EXACT_CELLS))) {
+      stack.push(aLo, aHi, bLo, bHi, 1);
+      continue;
+    }
+
+    // Look for the rarest common lines first; if every common line is very frequent, accept frequent ones too.
+    let bestLen = 0, bestA = -1, bestB = -1;
+    for (const limit of [MAX_CHAIN, Infinity]) {
+      let bestCnt = limit;
+      for (let bi = bLo; bi < bHi;) {
+        const id = b[bi];
+        let nextBi = bi + 1;
+        if (stamp[id] === gen) {
+          if (cnt[id] <= bestCnt) {
+            for (let ai = head[id]; ai !== -1; ai = nxt[ai]) {
+              let as = ai, bs = bi, ae = ai + 1, be = bi + 1, rc = cnt[id];
+              while (as > aLo && bs > bLo && a[as - 1] === b[bs - 1]) { as--; bs--; if (rc > 1) { const c = cnt[a[as]]; if (c < rc) rc = c; } }
+              while (ae < aHi && be < bHi && a[ae] === b[be]) { if (rc > 1) { const c = cnt[a[ae]]; if (c < rc) rc = c; } ae++; be++; }
+              work += ae - as + 1;
+              if (nextBi < be) nextBi = be;
+              if (bestLen < ae - as || rc < bestCnt) { bestLen = ae - as; bestA = as; bestB = bs; bestCnt = rc; }
+              while (nxt[ai] !== -1 && nxt[ai] < ae) ai = nxt[ai];
+            }
+          }
+        }
+        bi = nextBi;
+      }
+      if (bestA >= 0) break;
+    }
+    out.push(bestA, bestB, bestLen);
+    stack.push(bestA + bestLen, aHi, bestB + bestLen, bHi, 0, aLo, bestA, bLo, bestB, 0);
+  }
+  const runs = [];
+  for (let k = 0; k < out.length; k += 3) runs.push([out[k], out[k + 1], out[k + 2]]);
+  runs.sort((x, y) => x[0] - y[0]);
+  return { runs, simplified };
+}
+
+function tokenCounts(s) {
+  const m = new Map();
+  let n = 0;
+  for (const t of s.toLowerCase().split(/[^a-z0-9]+/)) { if (!t) continue; m.set(t, (m.get(t) || 0) + 1); n++; }
+  m.total = n;
+  return m;
+}
+function dice(x, y) {
+  if (!x.total || !y.total) return 0;
+  const [sm, lg] = x.size < y.size ? [x, y] : [y, x];
+  let c = 0;
+  for (const [t, k] of sm) { const k2 = lg.get(t); if (k2) c += Math.min(k, k2); }
+  return 2 * c / (x.total + y.total);
+}
+
+// Pair up the lines of one difference block: equal-sized blocks pair line by line; uneven blocks pair the most similar lines.
+function alignHunk(aS, dl, bS, il, push, A, B, norm) {
+  if (!dl) { for (let j = 0; j < il; j++) push('add', -1, bS + j); return; }
+  if (!il) { for (let i = 0; i < dl; i++) push('del', aS + i, -1); return; }
+  if (dl === il || dl * il > 6400) {
+    const k = Math.min(dl, il);
+    for (let i = 0; i < k; i++) push('chg', aS + i, bS + i);
+    for (let i = k; i < dl; i++) push('del', aS + i, -1);
+    for (let j = k; j < il; j++) push('add', -1, bS + j);
+    return;
+  }
+  const sa = [], sb = [];
+  for (let i = 0; i < dl; i++) sa.push(tokenCounts(norm(A[aS + i])));
+  for (let j = 0; j < il; j++) sb.push(tokenCounts(norm(B[bS + j])));
+  const W = il + 1;
+  const S = new Float32Array((dl + 1) * W), C = new Uint8Array((dl + 1) * W);
+  for (let i = 1; i <= dl; i++) {
+    for (let j = 1; j <= il; j++) {
+      let best = S[(i - 1) * W + j], c = 1;
+      if (S[i * W + j - 1] > best) { best = S[i * W + j - 1]; c = 2; }
+      const sim = dice(sa[i - 1], sb[j - 1]);
+      if (sim >= SIM_MIN && S[(i - 1) * W + j - 1] + sim > best) { best = S[(i - 1) * W + j - 1] + sim; c = 3; }
+      S[i * W + j] = best; C[i * W + j] = c;
+    }
+  }
+  const pi = [], pj = [];
+  let i = dl, j = il;
+  while (i > 0 && j > 0) {
+    const c = C[i * W + j];
+    if (c === 3) { pi.push(i - 1); pj.push(j - 1); i--; j--; } else if (c === 1) i--; else j--;
+  }
+  pi.reverse(); pj.reverse();
+  let pa = 0, pb = 0;
+  for (let k = 0; k < pi.length; k++) {
+    for (; pa < pi[k]; pa++) push('del', aS + pa, -1);
+    for (; pb < pj[k]; pb++) push('add', -1, bS + pb);
+    push('chg', aS + pa, bS + pb); pa++; pb++;
+  }
+  for (; pa < dl; pa++) push('del', aS + pa, -1);
+  for (; pb < il; pb++) push('add', -1, bS + pb);
+}
+
+function buildRows(runs, A, B, norm) {
+  const rows = [];
+  const push = (t, l, r) => { rows.push({ t, l, r, i: rows.length }); };
+  let ai = 0, bi = 0;
+  for (const [ma, mb, len] of runs) {
+    if (ma < ai || mb < bi) throw new Error('internal: overlapping matches');
+    if (ma > ai || mb > bi) alignHunk(ai, ma - ai, bi, mb - bi, push, A, B, norm);
+    for (let k = 0; k < len; k++) push('eq', ma + k, mb + k);
+    ai = ma + len; bi = mb + len;
+  }
+  if (ai < A.length || bi < B.length) alignHunk(ai, A.length - ai, bi, B.length - bi, push, A, B, norm);
+  return rows;
+}
+
+function strictRows(a, b) {
+  const rows = [], n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const l = i < a.length ? i : -1, r = i < b.length ? i : -1;
+    rows.push({ t: l < 0 ? 'add' : r < 0 ? 'del' : a[i] === b[i] ? 'eq' : 'chg', l, r, i });
+  }
+  return rows;
+}
+
+/* ======================= in-line (word level) differences ======================= */
+const TOK_RE = /[A-Za-z0-9_]+|\s+|[^A-Za-z0-9_\s]/g;
+function tokenize(text) {
+  const toks = [];
+  const plain = (s, e) => {
+    if (s >= e) return;
+    const seg = text.slice(s, e);
+    TOK_RE.lastIndex = 0;
+    let m;
+    while ((m = TOK_RE.exec(seg))) {
+      const t = m[0], st = s + m.index, ws = /\s/.test(t[0]);
+      toks.push({ s: st, e: st + t.length, ws, k: ws ? (opts.ws ? ' ' : t) : (opts.ic ? t.toLowerCase() : t) });
+    }
+  };
+  let pos = 0;
+  for (const [ms, me] of maskRanges(text)) { plain(pos, ms); toks.push({ s: ms, e: me, ws: false, k: '\u0001' }); pos = me; }
+  plain(pos, text.length);
+  return toks;
+}
+function wholeLine(lt, rt) {
+  const l = lt.length ? [0, lt.length] : null, r = rt.length ? [0, rt.length] : null;
+  return { L: l ? [l] : EMPTY, R: r ? [r] : EMPTY, chunks: [{ l, r }] };
+}
+function computeIntra(lt, rt) {
+  if (lt.length + rt.length > 60000) return wholeLine(lt, rt);
+  const A = tokenize(lt), B = tokenize(rt);
+  const ia = [], ib = [];
+  for (let i = 0; i < A.length; i++) if (!(opts.ws && A[i].ws)) ia.push(i);
+  for (let i = 0; i < B.length; i++) if (!(opts.ws && B[i].ws)) ib.push(i);
+  const dict = new Map();
+  const id = (k) => { let v = dict.get(k); if (v === undefined) { v = dict.size; dict.set(k, v); } return v; };
+  const a = new Int32Array(ia.length), b = new Int32Array(ib.length);
+  for (let j = 0; j < ia.length; j++) a[j] = id(A[ia[j]].k);
+  for (let j = 0; j < ib.length; j++) b[j] = id(B[ib[j]].k);
+  const pairs = myersMatches(a, 0, a.length, b, 0, b.length, Math.min(600, a.length + b.length));
+  if (!pairs) return wholeLine(lt, rt);
+  const L = [], R = [], chunks = [];
+  let pa = 0, pb = 0;
+  const gap = (ea, eb) => {
+    if (ea <= pa && eb <= pb) return;
+    const l = ea > pa ? [A[ia[pa]].s, A[ia[ea - 1]].e] : null;
+    const r = eb > pb ? [B[ib[pb]].s, B[ib[eb - 1]].e] : null;
+    chunks.push({ l, r });
+    if (l) L.push(l);
+    if (r) R.push(r);
+  };
+  for (let k = 0; k < pairs.length; k += 2) { gap(pairs[k], pairs[k + 1]); pa = pairs[k] + 1; pb = pairs[k + 1] + 1; }
+  gap(a.length, b.length);
+  return { L, R, chunks };
+}
+function intra(row) {
+  if (!row.x) row.x = computeIntra(state.files.L.lines[row.l], state.files.R.lines[row.r]);
+  return row.x;
+}
+
+/* ======================= compare ======================= */
+let compareToken = 0;
+async function runCompare() {
+  if (!state.files.L || !state.files.R) return;
+  const token = ++compareToken;
+  busy(true, 'Comparing…');
+  await nextPaint();
+  if (token !== compareToken) return;
+  try { doCompare(); }
+  catch (e) { console.error(e); toast('Compare failed: ' + e.message, 6000); }
+  busy(false);
+}
+
+function doCompare() {
+  const t0 = performance.now();
+  const A = state.files.L.lines, B = state.files.R.lines;
+  state.maskRes = buildMaskRes();
+  const norm = makeNormalizer();
+  const dict = new Map();
+  const toIds = (lines) => {
+    const ids = new Int32Array(lines.length);
+    for (let i = 0; i < lines.length; i++) {
+      const k = norm(lines[i]);
+      let v = dict.get(k);
+      if (v === undefined) { v = dict.size; dict.set(k, v); }
+      ids[i] = v;
+    }
+    return ids;
+  };
+  const a = toIds(A), b = toIds(B);
+  let rows, simplified = false;
+  if (opts.mode === 'strict') rows = strictRows(a, b);
+  else {
+    const res = diffLines(a, b, dict.size);
+    simplified = res.simplified;
+    rows = buildRows(res.runs, A, B, norm);
+  }
+  const st = { eq: 0, chg: 0, del: 0, add: 0 };
+  for (const r of rows) st[r.t]++;
+  state.rows = rows;
+  state.stats = st;
+  state.simplified = simplified;
+  state.expanded = new Set();
+  state.compared = true;
+  state.stale = false;
+  state.elapsed = performance.now() - t0;
+  rebuildDisplay({ reset: true });
+}
+
+const fullIdx = (row) => (row.t === 'fold' ? row.s : row.i);
+function dispIndexOfFull(fi) {
+  const d = state.disp;
+  let lo = 0, hi = d.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (fullIdx(d[mid]) < fi) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+function rebuildDisplay({ reset = false } = {}) {
+  const prevSel = !reset && state.sel >= 0 ? state.disp[state.sel] : null;
+  const anchorFi = !reset && state.disp.length ? fullIdx(state.disp[Math.min(state.disp.length - 1, topRow())]) : 0;
+  const rows = state.rows;
+  let disp = rows;
+  if (opts.only) {
+    disp = [];
+    const ctx = opts.ctx, n = rows.length;
+    let i = 0;
+    while (i < n) {
+      if (rows[i].t !== 'eq') { disp.push(rows[i]); i++; continue; }
+      let j = i;
+      while (j < n && rows[j].t === 'eq') j++;
+      const hs = i + (i === 0 ? 0 : ctx), he = j - (j === n ? 0 : ctx);
+      if (he - hs >= 3 && !state.expanded.has(i)) {
+        for (let k = i; k < hs; k++) disp.push(rows[k]);
+        disp.push({ t: 'fold', s: hs, e: he, key: i });
+        for (let k = he; k < j; k++) disp.push(rows[k]);
+      } else {
+        for (let k = i; k < j; k++) disp.push(rows[k]);
+      }
+      i = j;
+    }
+  }
+  state.disp = disp;
+
+  const blocks = [], runs = [];
+  for (let i = 0; i < disp.length; i++) {
+    const t0 = disp[i].t;
+    if (t0 === 'eq' || t0 === 'fold') continue;
+    const b = { s: i, e: i, c: 0, d: 0, a: 0, l0: -1, l1: -1, r0: -1, r1: -1 };
+    while (i < disp.length && disp[i].t !== 'eq' && disp[i].t !== 'fold') {
+      const r = disp[i];
+      if (r.t === 'chg') b.c++; else if (r.t === 'del') b.d++; else b.a++;
+      if (r.l >= 0) { if (b.l0 < 0) b.l0 = r.l; b.l1 = r.l; }
+      if (r.r >= 0) { if (b.r0 < 0) b.r0 = r.r; b.r1 = r.r; }
+      const last = runs[runs.length - 1];
+      if (last && last.t === r.t && last.e === i) last.e = i + 1; else runs.push({ t: r.t, s: i, e: i + 1 });
+      i++;
+    }
+    b.e = i;
+    blocks.push(b);
+    i--;
+  }
+  state.blocks = blocks;
+  state.runs = runs;
+
+  state.sel = prevSel ? disp.indexOf(prevSel) : -1;
+  state.curBlock = state.sel >= 0 ? blockAt(state.sel) : -1;
+
+  const L = state.files.L, R = state.files.R;
+  const digits = String(Math.max(L.lines.length, R.lines.length, 1)).length;
+  const maxLen = Math.min(RENDER_LIMIT + 60, Math.max(L.maxLen, R.maxLen));
+  for (const [pane, sp] of [[els.paneL, els.spL], [els.paneR, els.spR]]) {
+    pane.style.setProperty('--digits', digits);
+    sp.style.height = disp.length * ROW_H + 'px';
+    sp.style.width = `calc(${digits + 4 + maxLen}ch + 34px)`;
+  }
+
+  if (reset) {
+    els.paneL.scrollTop = 0; els.paneL.scrollLeft = 0;
+    els.paneR.scrollTop = 0; els.paneR.scrollLeft = 0;
+  } else {
+    els.paneL.scrollTop = dispIndexOfFull(anchorFi) * ROW_H;
+  }
+
+  findHits();
+  state.version++;
+  updateChrome();
+  drawOverview();
+  renderSide();
+  renderDetail();
+  scheduleRender();
+}
+
+function blockAt(i) {
+  const B = state.blocks;
+  let lo = 0, hi = B.length - 1, ans = -1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (B[mid].s <= i) { ans = mid; lo = mid + 1; } else hi = mid - 1; }
+  return ans >= 0 && i < B[ans].e ? ans : -1;
+}
+
+/* ======================= rendering: panes ======================= */
+const topRow = () => Math.floor(els.paneL.scrollTop / ROW_H);
+
+function renderText(text, layers, limit) {
+  let t = text, extra = 0;
+  if (t.length > limit) { extra = t.length - limit; t = t.slice(0, limit); }
+  const act = layers.filter((l) => l[0].length);
+  let html;
+  if (!act.length) html = esc(t);
+  else {
+    const len = t.length, pts = [0, len];
+    for (const [rs] of act) for (const r of rs) { if (r[0] < len) pts.push(r[0]); if (r[1] < len) pts.push(r[1]); }
+    pts.sort((x, y) => x - y);
+    html = '';
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i], q = pts[i + 1];
+      if (p === q) continue;
+      let cls = '';
+      for (const [rs, c] of act) for (const r of rs) if (r[0] <= p && p < r[1]) { cls += (cls ? ' ' : '') + c; break; }
+      const s = esc(t.slice(p, q));
+      html += cls ? `<span class="${cls}">${s}</span>` : s;
+    }
+  }
+  if (extra) html += `<span class="trunc">  … ${fmt(extra)} more characters (full line in the detail pane below)</span>`;
+  return html;
+}
+
+function hitRanges(text) {
+  const t = state.search.lc;
+  if (!t || !text) return EMPTY;
+  const low = text.toLowerCase(), out = [];
+  let i = low.indexOf(t);
+  while (i !== -1) { out.push([i, i + t.length]); i = low.indexOf(t, i + t.length); }
+  return out;
+}
+
+function lineLayers(text, row, side) {
+  const layers = [];
+  if (state.maskRes.length) layers.push([maskRanges(text), 'ig']);
+  if (row.t === 'chg') layers.push([intra(row)[side], side === 'L' ? 'dl' : 'dr']);
+  if (state.search.lc) layers.push([hitRanges(text), 'hit']);
+  return layers;
+}
+
+const MARK = { chg: '≠', del: '−', add: '+', eq: '' };
+function rowHtml(row, i, side) {
+  const sel = i === state.sel ? ' sel' : '';
+  const top = i * ROW_H;
+  if (row.t === 'fold') {
+    return `<div class="r fold${sel}" data-i="${i}" style="top:${top}px"><span class="ln">⋯</span><span class="tx">  ${fmt(row.e - row.s)} identical lines hidden (click to show)</span></div>`;
+  }
+  const idx = side === 'L' ? row.l : row.r;
+  if (idx < 0) return `<div class="r fill${sel}" data-i="${i}" style="top:${top}px"><span class="ln"></span><span class="tx"></span></div>`;
+  const text = state.files[side].lines[idx];
+  return `<div class="r t-${row.t}${sel}" data-i="${i}" style="top:${top}px"><span class="ln">${idx + 1}<i>${MARK[row.t]}</i></span><span class="tx">${renderText(text, lineLayers(text, row, side), RENDER_LIMIT)}</span></div>`;
+}
+
+let lastKey = '', rafPending = false;
+function scheduleRender() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; renderPanes(); updateOvBox(); });
+}
+function renderPanes() {
+  if (state.stale) return;
+  const n = state.disp.length;
+  const p = els.paneL, h = p.clientHeight || 800;
+  const first = Math.max(0, Math.floor(p.scrollTop / ROW_H) - OVERSCAN);
+  const last = Math.min(n, Math.ceil((p.scrollTop + h) / ROW_H) + OVERSCAN);
+  const key = `${first}:${last}:${state.version}`;
+  if (key === lastKey) return;
+  lastKey = key;
+  let hl = '', hr = '';
+  for (let i = first; i < last; i++) { const row = state.disp[i]; hl += rowHtml(row, i, 'L'); hr += rowHtml(row, i, 'R'); }
+  els.rowsL.innerHTML = hl;
+  els.rowsR.innerHTML = hr;
+}
+
+/* ======================= overview strip ======================= */
+function drawOverview() {
+  const c = els.ov, w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  const g = c.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const n = state.disp.length;
+  if (!n || !state.compared) return;
+  const cs = getComputedStyle(document.documentElement);
+  const col = { chg: cs.getPropertyValue('--chg-hi').trim(), del: cs.getPropertyValue('--del-hi').trim(), add: cs.getPropertyValue('--add-hi').trim() };
+  const half = Math.floor(w / 2);
+  for (const r of state.runs) {
+    const y = Math.floor(r.s / n * h), hh = Math.max(2, Math.ceil((r.e - r.s) / n * h));
+    g.fillStyle = col[r.t];
+    if (r.t === 'del') g.fillRect(0, y, half, hh);
+    else if (r.t === 'add') g.fillRect(half, y, w - half, hh);
+    else g.fillRect(0, y, w, hh);
+  }
+  updateOvBox();
+}
+function updateOvBox() {
+  const n = state.disp.length, h = els.ovWrap.clientHeight;
+  if (!n || !state.compared) { els.ovBox.hidden = true; return; }
+  els.ovBox.hidden = false;
+  const total = n * ROW_H, p = els.paneL;
+  els.ovBox.style.top = (p.scrollTop / total * h) + 'px';
+  els.ovBox.style.height = Math.max(6, Math.min(1, p.clientHeight / total) * h) + 'px';
+}
+function ovJump(e) {
+  const r = els.ovWrap.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+  els.paneL.scrollTop = f * state.disp.length * ROW_H - els.paneL.clientHeight / 2;
+}
+
+/* ======================= differences list ======================= */
+function rangeTxt(p, a, b) {
+  if (a < 0) return `${p}—`;
+  return a === b ? `${p}${fmt(a + 1)}` : `${p}${fmt(a + 1)}–${fmt(b + 1)}`;
+}
+function previewHtml(text, ranges, cls) {
+  let start = 0;
+  if (ranges.length && ranges[0][0] > 30) start = ranges[0][0] - 20;
+  const slice = text.slice(start, start + 240);
+  const shifted = [];
+  for (const r of ranges) { const s = r[0] - start, e = r[1] - start; if (e > 0 && s < slice.length) shifted.push([Math.max(0, s), e]); }
+  return (start ? '…' : '') + renderText(slice, [[shifted, cls]], 240);
+}
+function itemHtml(b, k) {
+  const d = state.disp, L = state.files.L.lines, R = state.files.R.lines;
+  const kind = b.c ? 'chg' : (b.d && !b.a) ? 'del' : (b.a && !b.d) ? 'add' : 'chg';
+  const parts = [];
+  if (b.c) parts.push(`${fmt(b.c)} changed`);
+  if (b.d) parts.push(`${fmt(b.d)} only in left`);
+  if (b.a) parts.push(`${fmt(b.a)} only in right`);
+  let rl = null, rr = null;
+  for (let i = b.s; i < b.e && i < b.s + 200 && (!rl || !rr); i++) { if (!rl && d[i].l >= 0) rl = d[i]; if (!rr && d[i].r >= 0) rr = d[i]; }
+  const none = '<span class="muted">(no line)</span>';
+  const pl = rl ? previewHtml(L[rl.l], rl.t === 'chg' ? intra(rl).L : EMPTY, 'dl') : none;
+  const pr = rr ? previewHtml(R[rr.r], rr.t === 'chg' ? intra(rr).R : EMPTY, 'dr') : none;
+  return `<div class="item k-${kind}${k === state.curBlock ? ' cur' : ''}" data-k="${k}" style="top:${k * ITEM_H}px">`
+    + `<div class="t1"><span>${rangeTxt('Left ', b.l0, b.l1)} <span class="muted">↔</span> ${rangeTxt('Right ', b.r0, b.r1)}</span><span class="no">#${fmt(k + 1)}</span></div>`
+    + `<div class="t2">${parts.join(' · ')}</div>`
+    + `<div class="pv"><b>L</b>${pl}</div><div class="pv"><b>R</b>${pr}</div></div>`;
+}
+function renderSide() {
+  if (state.stale) return;
+  const B = state.blocks, list = els.sideList;
+  els.sideCount.textContent = state.compared ? `(${fmt(B.length)})` : '';
+  if (!state.compared || !B.length) {
+    els.sideSpacer.style.height = '0px';
+    els.sideItems.innerHTML = state.compared ? '<div class="side-empty">No differences with the current options.</div>' : '<div class="side-empty">Load two files to compare.</div>';
+    return;
+  }
+  els.sideSpacer.style.height = B.length * ITEM_H + 'px';
+  const top = list.scrollTop, h = list.clientHeight || 600;
+  const first = Math.max(0, Math.floor(top / ITEM_H) - 3), last = Math.min(B.length, Math.ceil((top + h) / ITEM_H) + 3);
+  let html = '';
+  for (let k = first; k < last; k++) html += itemHtml(B[k], k);
+  els.sideItems.innerHTML = html;
+}
+function revealSideItem(k) {
+  if (k < 0) return;
+  const list = els.sideList, top = k * ITEM_H, h = list.clientHeight;
+  if (top < list.scrollTop) list.scrollTop = top;
+  else if (top + ITEM_H > list.scrollTop + h) list.scrollTop = top + ITEM_H - h;
+}
+
+/* ======================= detail pane ======================= */
+function renderDetail() {
+  if (state.stale) return;
+  const row = state.sel >= 0 ? state.disp[state.sel] : null;
+  if (!state.compared) { els.detail.innerHTML = ''; return; }
+  if (!row || row.t === 'fold') {
+    els.detail.innerHTML = '<div class="hint">Click a line to see the left and right versions in full here. Press F8 / Shift+F8 (or N / P) to jump between differences.</div>';
+    return;
+  }
+  const out = [];
+  for (const side of ['L', 'R']) {
+    const idx = side === 'L' ? row.l : row.r;
+    const name = side === 'L' ? 'Left' : 'Right';
+    if (idx < 0) {
+      out.push(`<div class="lbl">${name}</div><div class="val none">No matching line: this line is only in the ${side === 'L' ? 'right' : 'left'} file</div>`);
+    } else {
+      const text = state.files[side].lines[idx];
+      out.push(`<div class="lbl">${name} · line ${fmt(idx + 1)}</div><div class="val t-${row.t}">${renderText(text, lineLayers(text, row, side), DETAIL_LIMIT)}</div>`);
+    }
+  }
+  if (row.t === 'chg') out.push(`<div class="lbl">What changed</div><div class="val chunks">${chunksHtml(row)}</div>`);
+  els.detail.innerHTML = out.join('');
+}
+function clip(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+function chunksHtml(row) {
+  const x = intra(row), lt = state.files.L.lines[row.l], rt = state.files.R.lines[row.r];
+  if (!x.chunks.length) return '<span class="muted">Only ignored text differs.</span>';
+  const parts = x.chunks.slice(0, 25).map((c) => {
+    const l = c.l ? `<code class="dl">${esc(clip(lt.slice(c.l[0], c.l[1]), 160))}</code>` : '';
+    const r = c.r ? `<code class="dr">${esc(clip(rt.slice(c.r[0], c.r[1]), 160))}</code>` : '';
+    if (l && r) return `${l}<span class="arrow">→</span>${r}`;
+    return l ? `${l} <span class="muted">removed</span>` : `${r} <span class="muted">added</span>`;
+  });
+  if (x.chunks.length > 25) parts.push(`<span class="muted">… ${x.chunks.length - 25} more</span>`);
+  return parts.join('<span class="sepc">|</span>');
+}
+
+/* ======================= chrome: heads, stats, buttons ======================= */
+function ignoredList() {
+  const on = ['ts', 'pid', 'guid', 'ic', 'ws'].filter((k) => opts[k]).map((k) => IGNORE_NAMES[k]);
+  if (opts.custom.trim() && !els.optCustom.classList.contains('bad')) on.push(`/${opts.custom.trim()}/`);
+  return on.join(', ');
+}
+function renderHeads() {
+  for (const side of ['L', 'R']) {
+    const f = state.files[side];
+    const name = side === 'L' ? 'Left' : 'Right';
+    const head = side === 'L' ? els.headL : els.headR;
+    head.innerHTML = `<span class="tag">${name}</span>`
+      + (f ? `<span class="fname" title="${esc(f.name)}">${esc(f.name)}</span><span class="fmeta">${fmt(f.lines.length)} lines · ${f.enc} · ${fmtSize(f.size)}</span>`
+           : '<span class="fmeta">No file</span>')
+      + `<button class="btn sm" data-open="${side}" title="Choose a different ${name.toLowerCase()} file">Open…</button>`;
+    const dz = side === 'L' ? els.dzL : els.dzR, drop = side === 'L' ? els.dropL : els.dropR;
+    drop.classList.toggle('loaded', !!f);
+    dz.innerHTML = f
+      ? `<span class="okmark">✓</span> <b>${esc(f.name)}</b><br>${fmt(f.lines.length)} lines · ${f.enc} · ${fmtSize(f.size)}<br><span class="muted">Click or drop to replace</span>`
+      : 'Drop a .txt or .log file here, or click to browse';
+  }
+}
+function updateChrome() {
+  const cmp = state.compared && state.files.L && state.files.R;
+  els.empty.hidden = !!cmp;
+  for (const b of [els.btnPrev, els.btnNext]) b.disabled = !cmp || !state.blocks.length;
+  for (const b of [els.btnSave, els.btnCopy, els.btnFindNext, els.btnFindPrev]) b.disabled = !cmp;
+  els.search.disabled = !cmp;
+  els.btnSwap.disabled = !(state.files.L || state.files.R);
+  els.btnClear.disabled = !(state.files.L || state.files.R);
+  els.optCtx.disabled = !opts.only;
+  updateNav();
+  updateSearchInfo();
+  if (!cmp || !state.stats) { els.stats.innerHTML = ''; return; }
+  const s = state.stats, total = state.files.L.lines.length + state.files.R.lines.length;
+  const ign = ignoredList();
+  let html;
+  if (!state.blocks.length) {
+    html = `<span class="ok">✓ No differences</span>${ign ? `<span class="muted">ignoring ${esc(ign)}</span>` : ''}`;
+  } else {
+    let pct = total ? 2 * s.eq / total * 100 : 100;
+    pct = Math.floor(pct * 10) / 10;
+    html = `<span class="stat chg"><i></i>${fmt(s.chg)} changed</span>`
+      + `<span class="stat del"><i></i>${fmt(s.del)} only in left</span>`
+      + `<span class="stat add"><i></i>${fmt(s.add)} only in right</span>`
+      + `<span class="muted" title="${ign ? 'Ignoring ' + esc(ign) : 'Nothing ignored'} · compared in ${(state.elapsed / 1000).toFixed(2)} s">${pct}% identical</span>`;
+  }
+  if (state.simplified) html += '<span class="warn" title="These files are very large and very different, so parts of the alignment were simplified to keep the tool responsive. Every reported difference is real, but some lines that match may be shown as changed.">⚠ alignment simplified</span>';
+  els.stats.innerHTML = html;
+}
+function updateNav() {
+  const n = state.blocks.length;
+  if (!state.compared) { els.navInfo.textContent = ''; return; }
+  els.navInfo.textContent = !n ? '' : state.curBlock >= 0 ? `Difference ${fmt(state.curBlock + 1)} of ${fmt(n)}` : `${fmt(n)} difference${n === 1 ? '' : 's'}`;
+}
+
+/* ======================= selection & navigation ======================= */
+function ensureVisible(i, align) {
+  const p = els.paneL, top = i * ROW_H, h = p.clientHeight;
+  if (align === 'third') p.scrollTop = Math.max(0, top - Math.floor(h / 3));
+  else if (top < p.scrollTop) p.scrollTop = top;
+  else if (top + ROW_H > p.scrollTop + h) p.scrollTop = top + ROW_H - h;
+}
+function selectRow(i, align) {
+  if (i < 0 || i >= state.disp.length) return;
+  state.sel = i;
+  const k = blockAt(i);
+  const changed = k !== state.curBlock;
+  state.curBlock = k;
+  ensureVisible(i, align);
+  state.version++;
+  scheduleRender();
+  renderDetail();
+  updateNav();
+  if (changed) { revealSideItem(k); renderSide(); }
+}
+
+let chW = 0;
+function charWidth() {
+  if (chW) return chW;
+  const s = document.createElement('span');
+  s.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+  s.textContent = 'M'.repeat(50);
+  els.paneL.appendChild(s);
+  chW = s.getBoundingClientRect().width / 50 || 7.5;
+  s.remove();
+  return chW;
+}
+// Scroll horizontally so that character position `pos` of a line is visible (long log lines often differ far to the right).
+function revealCol(text, pos) {
+  let col = pos;
+  for (let i = 0; i < pos && i < text.length; i++) if (text.charCodeAt(i) === 9) col += 3;
+  const p = els.paneL;
+  const gutter = p.querySelector('.ln') ? p.querySelector('.ln').getBoundingClientRect().width : 60;
+  const x = col * charWidth() + 10;
+  const view = p.clientWidth - gutter;
+  if (x < p.scrollLeft + 10 || x > p.scrollLeft + view - 60) p.scrollLeft = Math.max(0, x - view / 4);
+}
+function revealRowChange(row) {
+  if (!row || row.t !== 'chg') { if (row && row.t !== 'eq') els.paneL.scrollLeft = 0; return; }
+  const c = intra(row).chunks[0];
+  if (!c) return;
+  if (c.l) revealCol(state.files.L.lines[row.l], c.l[0]);
+  else revealCol(state.files.R.lines[row.r], c.r[0]);
+}
+
+function gotoBlock(k) {
+  const B = state.blocks;
+  if (!B.length) return;
+  k = ((k % B.length) + B.length) % B.length;
+  state.curBlock = -2; // force side refresh
+  selectRow(B[k].s, 'third');
+  revealRowChange(state.disp[B[k].s]);
+}
+function nextDiff(dir) {
+  const B = state.blocks;
+  if (!state.compared || state.stale) return;
+  if (!B.length) { toast('No differences'); return; }
+  const ref = state.sel >= 0 ? state.sel : topRow() - 1;
+  let k = -1;
+  if (dir > 0) {
+    for (let i = 0; i < B.length; i++) if (B[i].s > ref) { k = i; break; }
+    if (k < 0) { k = 0; if (B.length > 1 || state.sel !== B[0].s) toast('Wrapped to the first difference'); }
+  } else {
+    const r = state.sel >= 0 ? state.sel : topRow() + 1;
+    for (let i = B.length - 1; i >= 0; i--) if (B[i].s < r) { k = i; break; }
+    if (k < 0) { k = B.length - 1; toast('Wrapped to the last difference'); }
+  }
+  gotoBlock(k);
+}
+
+/* ======================= search ======================= */
+function findHits() {
+  const s = state.search, hits = [];
+  s.hits = hits; s.idx = -1;
+  if (!s.lc || !state.compared || state.stale) return;
+  const L = state.files.L.lines, R = state.files.R.lines, t = s.lc;
+  for (const r of state.rows) {
+    if ((r.l >= 0 && L[r.l].toLowerCase().includes(t)) || (r.r >= 0 && R[r.r].toLowerCase().includes(t))) hits.push(r.i);
+  }
+}
+function updateSearchInfo() {
+  const s = state.search;
+  els.hitInfo.textContent = !s.lc || !state.compared ? '' : !s.hits.length ? 'No matches'
+    : s.idx >= 0 ? `${fmt(s.idx + 1)} of ${fmt(s.hits.length)}` : `${fmt(s.hits.length)} line${s.hits.length === 1 ? '' : 's'}`;
+}
+function revealFull(fi) {
+  let di = dispIndexOfFull(fi);
+  const row = state.disp[di];
+  if (!row || row.t === 'fold' || row.i !== fi) {
+    const f = row && row.t === 'fold' && row.s <= fi ? row : state.disp[di - 1];
+    if (f && f.t === 'fold') { state.expanded.add(f.key); rebuildDisplay(); di = dispIndexOfFull(fi); }
+  }
+  return di;
+}
+function searchStep(dir) {
+  const s = state.search;
+  if (state.stale) return;
+  if (!s.hits.length) { if (s.lc) toast('No matches'); return; }
+  const cur = state.sel >= 0 ? fullIdx(state.disp[state.sel]) : (dir > 0 ? (state.disp.length ? fullIdx(state.disp[topRow()] || state.disp[0]) - 1 : -1) : Infinity);
+  let k = -1;
+  if (dir > 0) { for (let i = 0; i < s.hits.length; i++) if (s.hits[i] > cur) { k = i; break; } if (k < 0) k = 0; }
+  else { for (let i = s.hits.length - 1; i >= 0; i--) if (s.hits[i] < cur) { k = i; break; } if (k < 0) k = s.hits.length - 1; }
+  s.idx = k;
+  const di = revealFull(s.hits[k]);
+  selectRow(di, 'third');
+  const row = state.disp[di];
+  const lt = row.l >= 0 ? state.files.L.lines[row.l] : '', rt = row.r >= 0 ? state.files.R.lines[row.r] : '';
+  const hl = hitRanges(lt), hr = hitRanges(rt);
+  if (hl.length) revealCol(lt, hl[0][0]); else if (hr.length) revealCol(rt, hr[0][0]);
+  updateSearchInfo();
+}
+const onSearchInput = debounce(() => {
+  state.search.term = els.search.value;
+  state.search.lc = els.search.value.toLowerCase();
+  findHits();
+  state.version++;
+  scheduleRender();
+  renderDetail();
+  updateSearchInfo();
+}, 250);
+
+/* ======================= report ======================= */
+function buildReport() {
+  const L = state.files.L, R = state.files.R, s = state.stats, B = state.blocks, d = state.disp;
+  const q = (t) => '"' + clip(t, 120) + '"';
+  const out = [];
+  out.push('LOG COMPARE REPORT', '='.repeat(78));
+  out.push(`Generated : ${new Date().toLocaleString()}`);
+  out.push(`Left      : ${L.name}  (${fmt(L.lines.length)} lines, ${L.enc})`);
+  out.push(`Right     : ${R.name}  (${fmt(R.lines.length)} lines, ${R.enc})`);
+  out.push(`Mode      : ${opts.mode === 'strict' ? 'Line-by-line (line N vs line N)' : 'Smart align'}`);
+  out.push(`Ignoring  : ${ignoredList() || 'nothing'}`);
+  out.push(`Result    : ${B.length ? `${fmt(B.length)} difference block(s) - ${fmt(s.chg)} changed line(s), ${fmt(s.del)} only in left, ${fmt(s.add)} only in right, ${fmt(s.eq)} identical`
+    : 'No differences'}`);
+  if (state.simplified) out.push('Note      : files are very large and very different; parts of the alignment were simplified.');
+  out.push('');
+  B.forEach((b, k) => {
+    out.push(`--- Difference ${k + 1} of ${B.length}: ${rangeTxt('Left ', b.l0, b.l1)} / ${rangeTxt('Right ', b.r0, b.r1)} ` + '-'.repeat(10));
+    for (let i = b.s; i < b.e; i++) {
+      const r = d[i];
+      if (r.t === 'chg') {
+        const lt = L.lines[r.l], rt = R.lines[r.r], x = intra(r);
+        out.push(`[CHANGED]        Left line ${r.l + 1}  |  Right line ${r.r + 1}`);
+        out.push(`    Left : ${lt}`);
+        out.push(`    Right: ${rt}`);
+        const ch = x.chunks.slice(0, 12).map((c) => (c.l && c.r ? `${q(lt.slice(c.l[0], c.l[1]))} -> ${q(rt.slice(c.r[0], c.r[1]))}`
+          : c.l ? `removed ${q(lt.slice(c.l[0], c.l[1]))}` : `added ${q(rt.slice(c.r[0], c.r[1]))}`));
+        if (x.chunks.length > 12) ch.push(`... ${x.chunks.length - 12} more`);
+        if (ch.length) out.push(`    Diff : ${ch.join(', ')}`);
+      } else if (r.t === 'del') {
+        out.push(`[ONLY IN LEFT]   Left line ${r.l + 1}`);
+        out.push(`    Left : ${L.lines[r.l]}`);
+      } else {
+        out.push(`[ONLY IN RIGHT]  Right line ${r.r + 1}`);
+        out.push(`    Right: ${R.lines[r.r]}`);
+      }
+    }
+    out.push('');
+  });
+  return out.join('\r\n');
+}
+function reportName() {
+  const base = (n) => n.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60);
+  return `Compare - ${base(state.files.L.name)} vs ${base(state.files.R.name)}.txt`;
+}
+function saveReport() {
+  if (!state.compared) return;
+  const blob = new Blob(['﻿' + buildReport()], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = reportName();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function copyReport() {
+  if (!state.compared) return;
+  const txt = buildReport();
+  try { await navigator.clipboard.writeText(txt); toast('Report copied to the clipboard'); return; } catch { /* fall back below */ }
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); toast('Report copied to the clipboard'); } catch { toast('Copy failed: use Save report instead'); }
+  ta.remove();
+}
+
+/* ======================= theme ======================= */
+let theme = readJSON('lc.theme') || 'auto';
+function applyTheme() {
+  const r = document.documentElement;
+  if (theme === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', theme);
+  els.btnTheme.textContent = theme === 'auto' ? '◐' : theme === 'light' ? '☀' : '☾';
+  els.btnTheme.title = `Theme: ${theme} (click to change)`;
+  drawOverview();
+}
+
+/* ======================= events ======================= */
+function onPaneScroll(e) {
+  const src = e.currentTarget, dst = src === els.paneL ? els.paneR : els.paneL;
+  if (Math.abs(dst.scrollTop - src.scrollTop) >= 1) dst.scrollTop = src.scrollTop;
+  if (Math.abs(dst.scrollLeft - src.scrollLeft) >= 1) dst.scrollLeft = src.scrollLeft;
+  scheduleRender();
+}
+els.paneL.addEventListener('scroll', onPaneScroll, { passive: true });
+els.paneR.addEventListener('scroll', onPaneScroll, { passive: true });
+
+function onRowsClick(e) {
+  const el = e.target.closest('.r');
+  if (!el) return;
+  const i = +el.dataset.i, row = state.disp[i];
+  if (!row) return;
+  if (row.t === 'fold') { state.expanded.add(row.key); rebuildDisplay(); return; }
+  if (window.getSelection && String(window.getSelection()).length) return; // user is selecting text to copy
+  selectRow(i, null);
+}
+els.rowsL.addEventListener('click', onRowsClick);
+els.rowsR.addEventListener('click', onRowsClick);
+
+els.sideList.addEventListener('scroll', () => requestAnimationFrame(renderSide), { passive: true });
+els.sideItems.addEventListener('click', (e) => { const it = e.target.closest('.item'); if (it) gotoBlock(+it.dataset.k); });
+
+let ovDrag = false;
+els.ovWrap.addEventListener('pointerdown', (e) => { if (!state.compared) return; ovDrag = true; els.ovWrap.setPointerCapture(e.pointerId); ovJump(e); });
+els.ovWrap.addEventListener('pointermove', (e) => { if (ovDrag) ovJump(e); });
+els.ovWrap.addEventListener('pointerup', () => { ovDrag = false; });
+els.ovWrap.addEventListener('wheel', (e) => { els.paneL.scrollTop += e.deltaY; e.preventDefault(); }, { passive: false });
+
+const savedH = readJSON('lc.detailH');
+if (savedH) els.detail.style.height = savedH + 'px';
+els.grip.addEventListener('pointerdown', (e) => {
+  const startY = e.clientY, startH = els.detail.offsetHeight;
+  els.grip.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    const h = Math.round(Math.max(44, Math.min(window.innerHeight * 0.6, startH - (ev.clientY - startY))));
+    els.detail.style.height = h + 'px';
+  };
+  const up = () => {
+    els.grip.removeEventListener('pointermove', move); els.grip.removeEventListener('pointerup', up);
+    writeJSON('lc.detailH', els.detail.offsetHeight);
+  };
+  els.grip.addEventListener('pointermove', move); els.grip.addEventListener('pointerup', up);
+  e.preventDefault();
+});
+
+new ResizeObserver(() => { drawOverview(); lastKey = ''; scheduleRender(); renderSide(); }).observe(els.panes);
+new ResizeObserver(() => renderSide()).observe(els.sideList);
+
+// options
+const BOXES = { optTs: 'ts', optPid: 'pid', optGuid: 'guid', optCase: 'ic', optWs: 'ws' };
+for (const [id, key] of Object.entries(BOXES)) {
+  els[id].checked = !!opts[key];
+  els[id].addEventListener('change', () => { opts[key] = els[id].checked; saveOpts(); runCompare(); });
+}
+els.optMode.value = opts.mode;
+els.optMode.addEventListener('change', () => { opts.mode = els.optMode.value; saveOpts(); runCompare(); });
+els.optOnly.checked = opts.only;
+els.optOnly.addEventListener('change', () => {
+  opts.only = els.optOnly.checked; saveOpts(); els.optCtx.disabled = !opts.only;
+  if (state.compared) { state.expanded = new Set(); rebuildDisplay(); if (state.sel >= 0) ensureVisible(state.sel, 'third'); }
+});
+els.optCtx.value = String(opts.ctx);
+els.optCtx.addEventListener('change', () => {
+  opts.ctx = +els.optCtx.value; saveOpts();
+  if (state.compared) { state.expanded = new Set(); rebuildDisplay(); }
+});
+els.optCustom.value = opts.custom;
+els.optCustom.addEventListener('input', debounce(() => { opts.custom = els.optCustom.value; saveOpts(); if (state.compared) runCompare(); else buildMaskRes(); }, 600));
+
+// buttons
+els.btnPrev.addEventListener('click', () => nextDiff(-1));
+els.btnNext.addEventListener('click', () => nextDiff(1));
+els.btnSave.addEventListener('click', saveReport);
+els.btnCopy.addEventListener('click', copyReport);
+els.btnSwap.addEventListener('click', () => {
+  const f = state.files; [f.L, f.R] = [f.R, f.L];
+  state.stale = state.compared;
+  renderHeads();
+  if (f.L && f.R) runCompare(); else updateChrome();
+});
+els.btnClear.addEventListener('click', () => {
+  state.files = { L: null, R: null }; state.compared = false; state.stale = false; state.rows = []; state.disp = []; state.blocks = []; state.runs = [];
+  state.stats = null; state.sel = -1; state.curBlock = -1; state.version++;
+  els.rowsL.innerHTML = ''; els.rowsR.innerHTML = '';
+  renderHeads(); updateChrome(); drawOverview(); renderSide(); renderDetail();
+});
+els.btnList.addEventListener('click', () => { document.body.classList.toggle('side-hidden'); writeJSON('lc.side', !document.body.classList.contains('side-hidden')); renderSide(); });
+els.btnTheme.addEventListener('click', () => { theme = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto'; writeJSON('lc.theme', theme); applyTheme(); });
+els.btnHelp.addEventListener('click', () => els.help.showModal());
+els.btnFindNext.addEventListener('click', () => searchStep(1));
+els.btnFindPrev.addEventListener('click', () => searchStep(-1));
+els.search.addEventListener('input', onSearchInput);
+els.search.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (els.search.value.toLowerCase() !== state.search.lc) {
+      state.search.term = els.search.value; state.search.lc = els.search.value.toLowerCase(); findHits(); state.version++;
+    }
+    searchStep(e.shiftKey ? -1 : 1);
+  } else if (e.key === 'Escape') { els.search.value = ''; onSearchInput(); els.search.blur(); }
+});
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawOverview);
+
+// file picking and drag & drop
+let pickSide = 'L';
+function openPicker(side) { pickSide = side; els.fileInput.value = ''; els.fileInput.click(); }
+els.fileInput.addEventListener('change', () => { const f = els.fileInput.files[0]; if (f) loadFiles([[pickSide, f]]); });
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-open]'); if (b) openPicker(b.dataset.open); });
+for (const d of [els.dropL, els.dropR]) {
+  d.addEventListener('click', () => openPicker(d.dataset.side));
+  d.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(d.dataset.side); } });
+}
+const sideOf = (t) => { const el = t && t.closest ? t.closest('[data-side]') : null; return el ? el.dataset.side : null; };
+function markDrop(side) {
+  els.dropL.classList.toggle('over', side === 'L'); els.dropR.classList.toggle('over', side === 'R');
+  els.paneL.classList.toggle('over', side === 'L'); els.paneR.classList.toggle('over', side === 'R');
+  els.headL.classList.toggle('over', side === 'L'); els.headR.classList.toggle('over', side === 'R');
+}
+window.addEventListener('dragover', (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; markDrop(sideOf(e.target)); });
+window.addEventListener('dragleave', (e) => { if (!e.relatedTarget) markDrop(null); });
+window.addEventListener('drop', (e) => {
+  e.preventDefault(); markDrop(null);
+  const files = [...((e.dataTransfer && e.dataTransfer.files) || [])];
+  if (!files.length) return;
+  if (files.length >= 2) { loadFiles([['L', files[0]], ['R', files[1]]]); return; }
+  const side = sideOf(e.target) || (!state.files.L ? 'L' : !state.files.R ? 'R' : 'L');
+  loadFiles([[side, files[0]]]);
+});
+
+// keyboard
+document.addEventListener('keydown', (e) => {
+  if (els.help.open) return;
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if (e.key === 'F8' || (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp'))) {
+    e.preventDefault();
+    nextDiff(e.key === 'ArrowUp' || (e.key === 'F8' && e.shiftKey) ? -1 : 1);
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && state.compared) { e.preventDefault(); els.search.focus(); els.search.select(); return; }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey || !state.compared) return;
+  const k = e.key.toLowerCase();
+  if (k === 'n') nextDiff(1);
+  else if (k === 'p') nextDiff(-1);
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const i = state.sel < 0 ? topRow() : state.sel + (e.key === 'ArrowDown' ? 1 : -1);
+    selectRow(Math.max(0, Math.min(state.disp.length - 1, i)), null);
+  } else if (e.key === 'PageDown' || e.key === 'PageUp') {
+    e.preventDefault();
+    els.paneL.scrollTop += (e.key === 'PageDown' ? 1 : -1) * (els.paneL.clientHeight - ROW_H * 2);
+  } else if (e.key === 'Home' && e.ctrlKey === false && !typing) {
+    els.paneL.scrollTop = 0;
+  } else if (e.key === 'End') {
+    els.paneL.scrollTop = state.disp.length * ROW_H;
+  }
+});
+
+/* ======================= init ======================= */
+const sidePref = readJSON('lc.side');
+if (sidePref === false || (sidePref === null && window.innerWidth < 1100)) document.body.classList.add('side-hidden');
+applyTheme();
+buildMaskRes();
+renderHeads();
+updateChrome();
+renderSide();
+
+// Hook for scripted use and testing: LogCompare.loadText('L', 'a.txt', text)
+window.LogCompare = {
+  loadText(side, name, text) { state.stale = true; state.files[side] = makeFile(name, text.length, text, 'text'); renderHeads(); return state.files.L && state.files.R ? runCompare() : updateChrome(); },
+  loadBytes(side, name, bytes) { const { text, enc } = decode(new Uint8Array(bytes)); state.stale = true; state.files[side] = makeFile(name, bytes.byteLength, text, enc); renderHeads(); return state.files.L && state.files.R ? runCompare() : updateChrome(); },
+  state, opts, buildReport,
+};
+})();
+</script>
+</body>
+</html>
