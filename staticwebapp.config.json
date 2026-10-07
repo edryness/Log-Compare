@@ -9,7 +9,8 @@
         }
       }
     }
-  },
+  }
+},
   "routes": [
     { "route": "/*", "allowedRoles": ["authenticated"] }
   ],
